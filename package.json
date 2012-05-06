@@ -3,6 +3,10 @@
   "name": "duecredit",
   "description": "A bit for fixing antisocial behaviour on Twitter.",
   "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://GraemeF@github.com/GraemeF/duecredit.git"
+  },
   "dependencies": {
     "ntwitter": "~0.3.0",
     "growler": "0.0.1",
