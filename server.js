@@ -3,7 +3,6 @@ var http = require('http');
 var twitter = require('ntwitter');
 var _ = require('underscore');
 var OAuth = require('oauth').OAuth;
-var growler = require('growler');
 
 const twitterConsumerKey = process.env.npm_package_config_consumerKey;
 const twitterConsumerSecret = process.env.npm_package_config_consumerSecret;
@@ -27,13 +26,6 @@ var twit = new twitter({
                            access_token_secret:twitterAccessTokenSecret
                        });
 
-console.log('auth',twit);
-var growlApp = new growler.GrowlApplication('Twitter Bot');
-growlApp.setNotifications({
-                              'Retweeted':{}
-                          });
-growlApp.register();
-
 function getStatusId(uri) {
     var parsed = url.parse(uri);
 
@@ -51,20 +43,18 @@ function getStatusId(uri) {
 }
 
 function retweet(statusId) {
-    console.log("Retweeting " + statusId);
-    var postUri = "http://api.twitter.com/1/statuses/retweet/" + statusId + ".json";
-    console.log("POSTing to " + postUri);
-    oAuth.post(postUri, twitterAccessToken,
-               twitterAccessTokenSecret, null, function (error, data) {
-            if (error)
-                console.dir(error);
-            else {
-                parsed = JSON.parse(data);
-                var notification = { title:parsed.text };
-                console.log("Notification", notification);
-                growlApp.sendNotification('Retweeted', notification);
-            }
-        });
+    console.log("Retweeting status id", statusId);
+    oAuth.post("http://api.twitter.com/1/statuses/retweet/" + statusId + ".json",
+               twitterAccessToken,
+               twitterAccessTokenSecret,
+               null,
+               function (error, data) {
+                   if (error)
+                       console.log('Failed to retweet:', error);
+                   else {
+                       console.log("Notification", JSON.parse(data).text);
+                   }
+               });
 }
 
 function decideWhatToDoWithLink(uri) {
@@ -85,41 +75,41 @@ function getLinks(status) {
 
 function dealWithResponse(uri, res) {
     if (res.statusCode === 301) {
-        followLink(res.headers.location, dealWithResponse);
+        followLink(res.headers.location);
     }
     else {
         decideWhatToDoWithLink(uri);
     }
 }
 
-function followLink(link, decideWhatToDoWithLink) {
+function followLink(link) {
     var options = url.parse(link);
     options.method = 'HEAD';
 
     if (options.protocol === "http:") {
-        console.dir("Following " + link);
+        console.dir("Following", link);
         var req = http.request(options, function (res) {
             dealWithResponse(link, res);
         });
 
         req.on('error', function (e) {
-            console.log('Problem with request: ' + e.message);
+            console.log('Problem with request:', e.message);
         });
 
         req.end();
     }
     else
-        console.log("Skipping " + link);
+        console.log("Skipping", link);
 }
 
 function processStatus(status) {
-    console.log("Processing: " + status.text);
+    console.log("Processing tweet:", status.text);
 
     var links = getLinks(status);
 
     if (_.any(links)) {
         _.each(links, function (link) {
-            followLink(link, decideWhatToDoWithLink);
+            followLink(link);
         });
     }
     else
@@ -133,17 +123,18 @@ function startWatching(userId) {
         stream.on('error', function (error, x) {
             console.log(error, x);
         });
+
         stream.on('data', function (status) {
-            console.log('');
+            console.log('New tweet detected.');
             processStatus(status);
         });
 
-        stream.on('end', function (response) {
+        stream.on('end', function () {
             console.log("Stream ended.");
             process.exit(1);
         });
 
-        stream.on('destroy', function (response) {
+        stream.on('destroy', function () {
             console.log("Stream destroyed.");
             process.exit(1);
         });
